@@ -2,7 +2,7 @@
 
 #### Load Proceesed Dataset (dataframe format)
 
-'''python
+```python
 from helper.dataset import DataLoader
 dl = DataLoader('train')
 
@@ -12,4 +12,4 @@ d1, _ = dl.get_each_parquet(0)
 # getting all stocks
 df, _ = dl.get_all_parquet()
 display(df)
-'''
+```
