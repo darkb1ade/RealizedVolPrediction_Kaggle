@@ -1,0 +1,5 @@
+path: 'C:/Users/Darkblade/Documents/Kaggle/dataset/RealizedVolPrediction/'
+
+features: 
+    WAP1: True
+    WAP2: True
