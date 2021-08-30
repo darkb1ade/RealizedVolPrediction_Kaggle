@@ -31,23 +31,19 @@ class DataLoader():
             
         dfVol = self._cal_features(dfBook)
         dfVol['stock_id'] = stock_id
+        cols = dfVol.columns.tolist()
+        cols = cols[-1:] + cols[:-1]
+        dfVol = dfVol[cols]
         display(dfVol)
             
         return dfVol, dfTrade
     
     def _cal_features(self, dfBook, show = False):
         for k, v in self.conf['features'].items():
-            if v:
-                print(f'compute:{k}')
-                if k == 'WAP1':
-                    cal_WAP1(dfBook)
-                    log_run(dfBook, 'WAP1')
-                if k== 'WAP2':
-                    cal_WAP2(dfBook)
-                    log_run(dfBook, 'WAP2')
-        
-        
+            eval(v.get('func'))(dfBook)
+            log_run(dfBook, v['name'])
         dfBook = dfBook.dropna()
+        col_name = ['logReturn_'+v['name'] for k, v in self.conf['features'].items()]
         dfVol = cal_vol(dfBook, ['logReturn_WAP1','logReturn_WAP2'])
         
         # display result
@@ -78,4 +74,7 @@ class DataLoader():
             #display(dfVol)
             df_volRes = pd.concat([df_volRes, dfVol])
             df_tradeRes = pd.concat([df_tradeRes, dfTrade])
+        cols = df_volRes.columns.tolist()
+        cols = cols[-1:] + cols[:-1]
+        df_volRes = df_volRes[cols]
         return df_volRes, df_tradeRes
