@@ -71,6 +71,7 @@ class DataLoader():
             
             dfVol = self._cal_features(dfBook)
             dfVol['stock_id'] = stock_id
+            dfTrade['stock_id'] = stock_id
             #display(dfVol)
             df_volRes = pd.concat([df_volRes, dfVol])
             df_tradeRes = pd.concat([df_tradeRes, dfTrade])
@@ -78,3 +79,6 @@ class DataLoader():
         cols = cols[-1:] + cols[:-1]
         df_volRes = df_volRes[cols]
         return df_volRes, df_tradeRes
+    
+    def get_gt(self):
+        return pd.read_csv(f"{self.conf['path']}/train.csv")
