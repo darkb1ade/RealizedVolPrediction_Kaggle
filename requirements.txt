@@ -4,3 +4,6 @@ numpy
 yaml
 PyYaml
 jupyter
+lightgbm
+seaborn
+matplotlib
