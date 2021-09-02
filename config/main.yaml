@@ -1,0 +1,9 @@
+path: './data/'
+
+features: 
+    f1:
+        func: cal_WAP1 #function name
+        name: 'WAP1' #defined col name
+    f2:
+        func: cal_WAP2
+        name: 'WAP2'
