@@ -46,7 +46,7 @@ class DataLoader():
             log_run(dfBook, v['name'])
         dfBook = dfBook.dropna()
         col_name = ['logReturn_'+v['name'] for k, v in self.conf['features'].items()]
-        dfVol = cal_vol(dfBook, ['logReturn_WAP1','logReturn_WAP2'])
+        dfVol = cal_vol(dfBook, col_name)
         
         # display result
         if show: 

@@ -10,11 +10,15 @@ def realized_volatility(series_log_return):
 
 def cal_WAP1(dfBook):
     dfBook['WAP1'] = (dfBook.bid_price1*dfBook.ask_size1+dfBook.ask_price1*dfBook.bid_size1)/(dfBook.bid_size1+dfBook.ask_size1)
-
-
+    
 def cal_WAP2(dfBook):
     dfBook['WAP2'] = (dfBook.bid_price2*dfBook.ask_size2+dfBook.ask_price2*dfBook.bid_size2)/(dfBook.bid_size2+dfBook.ask_size2)
+
+def cal_WAP3(dfBook):
+    dfBook['WAP3'] = (dfBook.bid_price1*dfBook.bid_size1+dfBook.ask_price1*dfBook.ask_size1)/(dfBook.bid_size1+dfBook.ask_size1)
     
+def cal_WAP4(dfBook):
+    dfBook['WAP4'] = (dfBook.bid_price2*dfBook.bid_size2+dfBook.ask_price2*dfBook.ask_size2)/(dfBook.bid_size2+dfBook.ask_size2)    
 
 def log_run(dfBook, col):
     dfBook[f'logReturn_{col}'] = dfBook.groupby(['time_id'])[col].apply(log_return)

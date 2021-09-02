@@ -7,3 +7,9 @@ features:
     f2:
         func: cal_WAP2
         name: 'WAP2'
+    f3:
+        func: cal_WAP3
+        name: 'WAP3'
+    f4:
+        func: cal_WAP4
+        name: 'WAP4'
