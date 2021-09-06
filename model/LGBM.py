@@ -10,9 +10,13 @@ from sklearn import model_selection
 import lightgbm as lgb
 from helper import utils
 
-
 class LGBM(BaseModel):
-    def __init__(self):
+    """
+    This is lightGBM class. Insert list of str contain feature column here.
+    Output column should be named "output"
+    To run, use lgbm.train_and_test() <- recommend
+    """
+    def __init__(self, feature_column=None):
         # Parameters of Light GBM
         self.params_lgbm = {
             'task': 'train',
@@ -57,7 +61,11 @@ class LGBM(BaseModel):
 
         # Get feature name (Not sure if this work), Data must have column name of following features and output is 'target'
         # features = [col for col in X_train.columns if col not in {"time_id", "target", "row_id"}]
-        self.features = ['stock_id', 'log_return1', 'log_return2', 'trade_log_return1']  # Need to change
+        if feature_column is None:
+            self.features = ['stock_id', 'log_return1', 'log_return2', 'trade_log_return1']  # Need to change
+        else:
+            self.features = feature_column
+        self.output_feature = "output"
 
     # Define loss function for lightGBM training
     def feval_RMSPE(self, preds, train_data):
@@ -92,16 +100,18 @@ class LGBM(BaseModel):
         return score, preds_val, model
 
     def test(self, model, test_input):
-        # Get feature name (Not sure if this work), might put this in __init__
-        features = [col for col in test_input.columns if col not in {"time_id", "target", "row_id"}]
-        # features = ['stock_id', 'log_return1', 'log_return2', 'trade_log_return1']
-
         # Prediction w/ validation data
-        test_preds = model.predict(test_input[features]).clip(0, 1e10)
+        test_preds = model.predict(test_input[self.features]).clip(0, 1e10)
         return test_preds
 
     # Combine train and test, with KFold CV
     def train_and_test(self, train_input, test_input):
+        """
+
+        :param train_input: pd array. Contain both feature data and "output" data
+        :param test_input: pd array. Contain feature data to test
+        :return: test_prediction (??): predicted output data of 'test_input'
+        """
         cv_trial = 1
         kf = model_selection.KFold(n_splits=self.n_folds, shuffle=True, random_state=15)
         # Create out of folds array
@@ -114,9 +124,9 @@ class LGBM(BaseModel):
 
             # Divide dataset into train and validation data such as Cross Validation
             X_train = train_input.loc[train_index, self.features]
-            y_train = train_input.loc[train_index, 'target'].values
+            y_train = train_input.loc[train_index, self.output_feature].values
             X_val = train_input.loc[val_index, self.features]
-            y_val = train_input.loc[val_index, 'target'].values
+            y_val = train_input.loc[val_index, self.output_feature].values
 
             score, preds_val, model = self.train(X_train, y_train, X_val, y_val)
             test_preds = self.test(model, test_input)
@@ -124,7 +134,7 @@ class LGBM(BaseModel):
             test_predictions += test_preds / self.n_folds
             cv_trial += 1
 
-        rmspe_score = self.rmspe(train_input['target'], oof_predictions)
+        rmspe_score = self.rmspe(train_input[self.output_feature], oof_predictions)
         print(f'Our out of folds RMSPE is {rmspe_score}')
         lgb.plot_importance(model, max_num_features=20)
 
