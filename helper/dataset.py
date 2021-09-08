@@ -82,7 +82,8 @@ class DataLoader():
     
     def get_all_parquet(self, show = False): # mode = 'test', 'train'
         df_volRes = pd.DataFrame()
-        df_tradeRes = pd.DataFrame()
+        #df_tradeRes = pd.DataFrame()
+        
         for lb, lt in zip(self.book_path, self.trade_path):
             assert lb.split('=')[-1][0]==lt.split('=')[-1][0], 'book and trade file not correspondence'
         
@@ -95,17 +96,27 @@ class DataLoader():
             if show:
                 display(dfBook.head())
                 display(dfTrade.head())
-            
-            dfVol = self._cal_features(dfBook)
+            print('feature calculation')
+            dfVol, _ = self._cal_features(dfBook)
             dfVol['stock_id'] = stock_id
-            dfTrade['stock_id'] = stock_id
-            #display(dfVol)
+            cols = dfVol.columns.tolist()
+            cols = cols[-1:] + cols[:-1]
+            dfVol = dfVol[cols]
+
+            dfTrade, _ = self._cal_features(dfTrade, flag = 'o')
+            
+            print('time series feature calculation')
+            for df in self._cal_features_time_series(dfVol.time_id, dfBook, show = False):
+                dfVol = pd.merge(dfVol, df, on=["time_id"])
+            dfVol = pd.merge(dfVol, dfTrade, on=["time_id"])
             df_volRes = pd.concat([df_volRes, dfVol])
-            df_tradeRes = pd.concat([df_tradeRes, dfTrade])
-        cols = df_volRes.columns.tolist()
-        cols = cols[-1:] + cols[:-1]
-        df_volRes = df_volRes[cols]
-        return df_volRes, df_tradeRes
-    
+            
+            if show:
+                display(df_volRes)
+                
+        return df_volRes
+
+        
+        
     def get_gt(self):
         return pd.read_csv(f"{self.conf['path']}/train.csv")
