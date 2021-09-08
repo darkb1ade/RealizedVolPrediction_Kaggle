@@ -9,6 +9,8 @@ from sklearn import model_selection
 # Modeling
 import lightgbm as lgb
 from helper import utils
+import optuna
+
 
 class LGBM(BaseModel):
     """
@@ -17,6 +19,7 @@ class LGBM(BaseModel):
     To run, use lgbm.train_and_test() <- recommend
     """
     def __init__(self, feature_column=None):
+        super().init()
         # Parameters of Light GBM
         self.params_lgbm = {
             'task': 'train',
@@ -72,14 +75,16 @@ class LGBM(BaseModel):
         labels = train_data.get_label()
         return 'RMSPE', round(utils.rmspe(y_true=labels, y_pred=preds), 5), False
 
-    def train(self, X_train, y_train, X_val, y_val):
+    def train(self, X_train, y_train, X_val, y_val, param=None):
         # Create dataset
         train_data = lgb.Dataset(X_train, label=y_train, weight=1 / np.power(y_train, 2))
         val_data = lgb.Dataset(X_val, label=y_val, weight=1 / np.power(y_val, 2))
         # val_data = lgb.Dataset(X_val, label=y_val, categorical_feature=cats, weight=1/np.power(y_val,2))
 
+        if param is None:
+            param = self.params_lgbm
         # training
-        model = lgb.train(params=self.params_lgbm,
+        model = lgb.train(params=param,
                           num_boost_round=1300,
                           train_set=train_data,
                           valid_sets=[train_data, val_data],
@@ -105,7 +110,7 @@ class LGBM(BaseModel):
         return test_preds
 
     # Combine train and test, with KFold CV
-    def train_and_test(self, train_input, test_input):
+    def train_and_test(self, train_input, test_input, param=None):
         """
 
         :param train_input: pd array. Contain both feature data and "output" data
@@ -128,7 +133,7 @@ class LGBM(BaseModel):
             X_val = train_input.loc[val_index, self.features]
             y_val = train_input.loc[val_index, self.output_feature].values
 
-            score, preds_val, model = self.train(X_train, y_train, X_val, y_val)
+            score, preds_val, model = self.train(X_train, y_train, X_val, y_val, param)
             test_preds = self.test(model, test_input)
             oof_predictions[val_index] = preds_val
             test_predictions += test_preds / self.n_folds
@@ -138,4 +143,58 @@ class LGBM(BaseModel):
         print(f'Our out of folds RMSPE is {rmspe_score}')
         lgb.plot_importance(model, max_num_features=20)
 
-        return test_predictions
+        return test_predictions, rmspe_score
+
+    def optimize_params(self, train_input, test_input):
+        def objective(trial):
+            params = {
+                'task': 'train',
+                'boosting_type': 'gbdt',
+                'learning_rate': 0.01,
+                'objective': 'regression',
+                'metric': 'None',
+                'max_depth': -1,
+                'n_jobs': -1,
+                'feature_fraction': 0.7,
+                'bagging_fraction': 0.7,
+                'lambda_l2': trial.suggest_uniform('lambda', 0.0, 1.0),
+                'verbose': -1
+                # 'bagging_freq': 5
+            }
+
+            # params = {"objective": "reg:squarederror",
+            #           "eval_metric": "rmse",
+            #           "tree_method": "hist",
+            #           "grow_policy": "lossguide",
+            #           'silent': 1,
+            #           "seed": 1,
+            #           "colsample_bytree": 1,
+            #           "subsample": 1,
+            #           'max_leaves': 31,  # lossguideの場合、当該項目の設定が必要（default: 0）
+            #           "max_depth": trial.suggest_int('max_depth', 2, 12),
+            #           "eta": trial.suggest_loguniform('eta', 10e-2, 1),
+            #           "alpha": trial.suggest_uniform('alpha', 0.0, 1.0),
+            #           "lambda": trial.suggest_uniform('lambda', 0.0, 1.0)}
+            print(params)
+            _, score = self.train_and_test(train_input,test_input,params)
+            return score
+
+        # scoreの最大化は"maximize"。最小化の場合は"minimize"
+        opt = optuna.create_study(
+            direction='minimize',
+            sampler=optuna.samplers.RandomSampler(seed=1))
+        opt.optimize(objective,
+                     n_trials=self.ntrial)
+        trial = opt.best_trial
+        params = self.params_lgbm.copy()
+        # params.update(**params, **trial.params)
+        for key, value in trial.params.items():
+            print('"{}" : {}'.format(key, value))
+            params[key] = value
+
+        test_predictions , score = self.train_and_test(train_input,test_input,params)
+        return test_predictions, score
+
+
+if __name__ == "__main__":
+    lgbm = LGBM()
