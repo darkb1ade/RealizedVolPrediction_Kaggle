@@ -25,27 +25,52 @@ class DataLoader():
                                                
         dfBook = pd.read_parquet(self.book_path[i])
         dfTrade = pd.read_parquet(self.trade_path[i])     
-        
+        dfBook0 = dfBook.copy()
+        dfTrade0 = dfTrade.copy()
         
         if show:
             display(dfBook.head())
             display(dfTrade.head())
             
-        dfVol = self._cal_features(dfBook)
+        dfVol, dfBook_inter = self._cal_features(dfBook)
         dfVol['stock_id'] = stock_id
         cols = dfVol.columns.tolist()
         cols = cols[-1:] + cols[:-1]
         dfVol = dfVol[cols]
+        
+        dfTrade, dfTrade_inter = self._cal_features(dfTrade, flag = 'o')
+        for df in self._cal_features_time_series(dfVol.time_id, dfBook, show = False):
+            dfVol = pd.merge(dfVol, df, on=["time_id"])
+        dfVol = pd.merge(dfVol, dfTrade, on=["time_id"])
+        print('result')
         display(dfVol)
             
-        return dfVol, dfTrade
+        return dfVol, dfBook_inter, dfTrade_inter, dfBook0, dfTrade0 # return result after process and raw input
     
-    def _cal_features(self, dfBook, show = False):
+    def _cal_features_time_series(self, t, dfBook, show = False):
+        tmp = {} # dict window_size: list of feature
         for k, v in self.conf['features'].items():
-            eval(v.get('func'))(dfBook)
-            log_run(dfBook, v['name'])
+            #print(v)
+            for w in v['Ex_win_size']: # if not blank
+                if w in tmp:
+                    tmp[w].append(v['name'])
+                else: 
+                    tmp[w] = [v['name']]
+
+        for w, cols in tmp.items():
+            yield get_time_series(t, dfBook, cols, w, show = show)
+        
+    def _cal_features(self, dfBook, flag = 'b', show = False):
+        for k, v in self.conf['features'].items():
+            if k[0]==flag:
+                if v.get('func') is not None:
+                    eval(v.get('func'))(dfBook)
+                log_run(dfBook, v['name'])
+                   
         dfBook = dfBook.dropna()
-        col_name = ['logReturn_'+v['name'] for k, v in self.conf['features'].items()]
+        col_name = dfBook.columns.tolist()
+        col_name = [a for a in col_name if 'logReturn_' in a]
+        #col_name = ['logReturn_'+v['name'] for k, v in self.conf['features'].items() if k[0]==flag ] #cal_vol
         dfVol = cal_vol(dfBook, col_name)
         
         # display result
@@ -53,7 +78,7 @@ class DataLoader():
             display(dfBook)
             display(dfVol)
             
-        return dfVol
+        return dfVol, dfBook
     
     def get_all_parquet(self, show = False): # mode = 'test', 'train'
         df_volRes = pd.DataFrame()

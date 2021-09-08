@@ -21,12 +21,47 @@ def cal_WAP4(dfBook):
     dfBook['WAP4'] = (dfBook.bid_price2*dfBook.bid_size2+dfBook.ask_price2*dfBook.ask_size2)/(dfBook.bid_size2+dfBook.ask_size2)    
 
 def log_run(dfBook, col):
+    #dfBook[f'time_w{w}'] = [f'{a}-{b}' for a, b in zip(dfBook.time_id, dfBook.seconds_in_bucket//w)]
     dfBook[f'logReturn_{col}'] = dfBook.groupby(['time_id'])[col].apply(log_return)
 
-def cal_vol(dfBook, col_names):
-    dat = {'time_id': list(dfBook['time_id'].unique())}
+        
+        
+def cal_vol(dfBook, col_names, group_col='time_id'):
+    dat = {'time_id': list(dfBook[group_col].unique())}
     for col in col_names:
-        dat[col] = list(dfBook.groupby(['time_id'])[col].agg(realized_volatility))
+        dat[col] = list(dfBook.groupby([group_col])[col].agg(realized_volatility))
     return  pd.DataFrame(dat)
         
+def get_time_series(t, dfBook, cols, w, show = False): # w = window size, cols = list of feature name
+    cols = [f'logReturn_{col}' for col in cols]
+
+    # Grouping column by w
+    dfBook['time_label'] =[f'{a}-{b}' for a, b in zip(dfBook.time_id, dfBook.seconds_in_bucket//w)]
     
+    # Compute vol based on new group column
+    a = cal_vol(dfBook, cols, 'time_label')
+    
+    # base time_id col
+    time = [int(t.split('-')[0]) for t in list(a.time_id)]
+    a.insert(0, "time_id0", time, True)
+    
+    if show: display(a.head())
+    
+    # time-series column name
+    col_name = []
+    for col in cols:
+        col_tmp = [f"{col}_w{w}_prev{i*w}" for i in range(600//w)]
+        col_name.extend(col_tmp)
+
+    # new dataframe
+    tmp = pd.DataFrame(columns = ['time_id'] + col_name)
+    tmp['time_id'] = t #dfvol.time_id
+
+    for t in list(tmp.time_id):
+        b = a.loc[a.time_id0==t, cols].to_numpy()
+        #print(b.flatten(order = 'F'))
+        
+        tmp.loc[tmp.time_id==t,col_name] = list(b.flatten(order = 'F')) #list(a[a.time_id0==t][cols])
+    if show:
+        display(tmp)
+    return tmp
