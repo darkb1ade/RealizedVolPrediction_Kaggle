@@ -11,6 +11,7 @@ print('current path', os.getcwd())
 class DataLoader():
     def __init__(self, mode):
         self.conf = yaml.load(open('config/main.yaml'), Loader=yaml.FullLoader)
+        self.mode = mode
         self.book_path = sorted(glob.glob(f"{self.conf['path']}/book_{mode}.parquet/*/*"))
         self.trade_path =  sorted(glob.glob(f"{self.conf['path']}/trade_{mode}.parquet/*/*"))
         self.book_path = [l.replace('\\','/') for l in self.book_path]
@@ -19,12 +20,19 @@ class DataLoader():
         self.trade_path = [l.replace('//','/') for l in self.trade_path]
 
     def get_each_parquet(self, i, show = False): # mode = 'test', 'train'
-        assert self.book_path[i].split('=')[-1].split('/')[0]==self.trade_path[i].split('=')[-1].split('/')[0], 'book and trade file not correspondence'
+#         i = int(i) if not isinstance(i, int) else i
+#         assert self.book_path[i].split('=')[-1].split('/')[0]==self.trade_path[i].split('=')[-1].split('/')[0], 'book and trade file not correspondence'
+#         book_path = glob.glob(f"{self.conf['path']}/book_{mode}.parquet/stock_id={i}/*")[0]
+#         stock_id = self.book_path[i].split('=')[-1].split('/')[0]
+        print('stock_id:', i)
+        book_path = glob.glob(f"{self.conf['path']}/book_{self.mode}.parquet/stock_id={i}/*")
+        trade_path = glob.glob(f"{self.conf['path']}/trade_{self.mode}.parquet/stock_id={i}/*")
+#         print(book_path)
+#         print(trade_path)
+        assert len(book_path)!=0 or len(trade_path)!=0, f"can't find stock id {i}"
         
-        stock_id = self.book_path[i].split('=')[-1].split('/')[0]
-                                               
-        dfBook = pd.read_parquet(self.book_path[i])
-        dfTrade = pd.read_parquet(self.trade_path[i])     
+        dfBook = pd.read_parquet(book_path[0])
+        dfTrade = pd.read_parquet(trade_path[0])     
         dfBook0 = dfBook.copy()
         dfTrade0 = dfTrade.copy()
         
@@ -33,7 +41,7 @@ class DataLoader():
             display(dfTrade.head())
             
         dfVol, dfBook_inter = self._cal_features(dfBook)
-        dfVol['stock_id'] = stock_id
+        dfVol['stock_id'] = i
         cols = dfVol.columns.tolist()
         cols = cols[-1:] + cols[:-1]
         dfVol = dfVol[cols]
@@ -89,26 +97,28 @@ class DataLoader():
         
             stock_id = lb.split('=')[-1].split('/')[0]
             print('Reading stock id:', stock_id)
-            
-            dfBook = pd.read_parquet(lb)
-            dfTrade = pd.read_parquet(lt)     
+            dfVol, _, _, _, _ = self.get_each_parquet(stock_id)
+#             dfBook = pd.read_parquet(lb)
+#             dfTrade = pd.read_parquet(lt)     
         
-            if show:
-                display(dfBook.head())
-                display(dfTrade.head())
-            print('feature calculation')
-            dfVol, _ = self._cal_features(dfBook)
-            dfVol['stock_id'] = stock_id
-            cols = dfVol.columns.tolist()
-            cols = cols[-1:] + cols[:-1]
-            dfVol = dfVol[cols]
+#             if show:
+#                 display(dfBook.head())
+#                 display(dfTrade.head())
+#             print('feature calculation')
+#             dfVol, _ = self._cal_features(dfBook)
+#             dfVol['stock_id'] = stock_id
+#             cols = dfVol.columns.tolist()
+#             cols = cols[-1:] + cols[:-1]
+#             dfVol = dfVol[cols]
 
-            dfTrade, _ = self._cal_features(dfTrade, flag = 'o')
+#             dfTrade, _ = self._cal_features(dfTrade, flag = 'o')
+#             dfVol = pd.merge(dfVol, dfTrade, on=["time_id"])
+#             display(dfVol)
+#             display(dfBook)
+#             print('time series feature calculation')
+#             for df in self._cal_features_time_series(dfVol.time_id, dfBook, show = False):
+#                 dfVol = pd.merge(dfVol, df, on=["time_id"])
             
-            print('time series feature calculation')
-            for df in self._cal_features_time_series(dfVol.time_id, dfBook, show = False):
-                dfVol = pd.merge(dfVol, df, on=["time_id"])
-            dfVol = pd.merge(dfVol, dfTrade, on=["time_id"])
             df_volRes = pd.concat([df_volRes, dfVol])
             
             if show:
