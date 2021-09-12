@@ -28,5 +28,6 @@ def main():
     test_predictions, score = lgbm_model.train(train_df, test_df)
     print(f"Test prediction: {test_predictions}, Score: {score}")
 
+
 if __name__ == "__main__":
     main()

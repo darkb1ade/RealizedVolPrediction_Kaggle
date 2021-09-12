@@ -1,9 +1,23 @@
 path: './data/'
 
 features: 
-    f1:
+    b1:
         func: cal_WAP1 #function name
         name: 'WAP1' #defined col name
-    f2:
+        Ex_win_size: [200, 300] # extra window size, avoid number less than 200
+    b2:
         func: cal_WAP2
         name: 'WAP2'
+        Ex_win_size:  [200, 300]
+    b3:
+        func: cal_WAP3
+        name: 'WAP3'
+        Ex_win_size:  [200, 300]
+    b4:
+        func: cal_WAP4
+        name: 'WAP4'
+        Ex_win_size: [200, 300]
+    o1:
+        func: 
+        name: 'price'
+        Ex_win_size: [] #[200, 300]
