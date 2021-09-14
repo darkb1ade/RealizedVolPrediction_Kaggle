@@ -19,15 +19,24 @@ from model.LGBM import LGBMModel
 # display(df)
 
 def main():
-    df = pd.read_csv("data/update8Sep_feature.csv")
-    feature_name = list(df.columns)
+    # get groundtruth/target
+    dl = DataLoader('train')
+    gt = dl.get_gt()
+
+
+    df = pd.read_csv("data/update10Sep_feature.csv")
+    dataset = pd.merge(df, gt, on=["stock_id", "time_id"])
+
+    feature_name = list(dataset.columns)
     feature_name.remove("time_id")
-    feature_name.remove("logReturn_price")
-    lgbm_model = LGBMModel(feature_name, "logReturn_price")
-    train_df, test_df = np.split(df, [int(.8*len(df))])
-    test_predictions, score = lgbm_model.train(train_df, test_df)
+    feature_name.remove("target")
+    lgbm_model = LGBMModel(feature_name, "target")
+    train_df, test_df = np.split(dataset, [int(.8*len(dataset))])
+    score, test_predictions, model = lgbm_model.train(train_df, test_df)
     print(f"Test prediction: {test_predictions}, Score: {score}")
 
+    test_predictions, rmspe_score = lgbm_model.train_and_test(train_df,test_df)
+    print(f"Train and Test prediction: {test_predictions}, Score: {rmspe_score}")
 
 if __name__ == "__main__":
     main()
