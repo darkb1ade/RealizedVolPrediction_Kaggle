@@ -203,7 +203,8 @@ class LGBMModel(BaseModel):
             params[key] = value
 
         test_predictions, score = self.train_and_test(train_input, test_input, params)
-        return test_predictions, score
+        print("Optimzied param is", params)
+        return test_predictions, score, params
 
 
 if __name__ == "__main__":

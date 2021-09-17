@@ -35,7 +35,8 @@ def main():
     score, test_predictions, model = lgbm_model.train(train_df, test_df)
     print(f"Test prediction: {test_predictions}, Score: {score}")
 
-    test_predictions, rmspe_score = lgbm_model.train_and_test(train_df,test_df)
+    # test_predictions, rmspe_score  = lgbm_model.train_and_test(train_df,test_df)
+    test_predictions, rmspe_score, params = lgbm_model.optimize_params(train_df,test_df)
     print(f"Train and Test prediction: {test_predictions}, Score: {rmspe_score}")
 
 if __name__ == "__main__":
