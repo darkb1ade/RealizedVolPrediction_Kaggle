@@ -150,7 +150,7 @@ class LGBMModel(BaseModel):
             test_predictions += test_preds / self.n_folds
             cv_trial += 1
 
-        rmspe_score = self.rmspe(train_input[self.output_feature], oof_predictions)
+        rmspe_score = utils.rmspe(train_input[self.output_feature], oof_predictions)
         print(f'Our out of folds RMSPE is {rmspe_score}')
         lgb.plot_importance(model, max_num_features=20)
 
@@ -203,7 +203,8 @@ class LGBMModel(BaseModel):
             params[key] = value
 
         test_predictions, score = self.train_and_test(train_input, test_input, params)
-        return test_predictions, score
+        print("Optimzied param is", params)
+        return test_predictions, score, params
 
 
 if __name__ == "__main__":
