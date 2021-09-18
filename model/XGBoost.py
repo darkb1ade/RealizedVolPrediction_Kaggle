@@ -7,36 +7,32 @@ import numpy as np
 from sklearn import model_selection
 
 # Modeling
-import lightgbm as lgb
+from xgboost import XGBRegressor
 from helper import utils
 import optuna
 
 
-class LGBMModel(BaseModel):
+class LGBM(BaseModel):
     """
     This is lightGBM class. Insert list of str contain feature column here.
     Output column should be named "output"
     To run, use lgbm.train_and_test() <- recommend
     """
-
-    def __init__(self, feature_column=None, output_column=None):
-        super().__init__()
+    def __init__(self, feature_column=None):
+        super().init()
         # Parameters of Light GBM
-        self.params_lgbm = {
-            'task': 'train',
-            'boosting_type': 'gbdt',
+        self.param = {
+            'tree_method': 'gpu_hist',
+            'lambda': 1,
+            'alpha': 1,
+            'colsample_bytree': 1.0,
+            'subsample': 1.0,
             'learning_rate': 0.01,
-            'objective': 'regression',
-            'metric': 'None',
-            'max_depth': -1,
-            'n_jobs': -1,
-            'feature_fraction': 0.7,
-            'bagging_fraction': 0.7,
-            'lambda_l2': 1,
-            'verbose': -1
-            # 'bagging_freq': 5
+            'n_estimators': 1000,
+            'max_depth': 20,
+            'random_state': 2020,
+            'min_child_weight': 300
         }
-
         # seed0 = 2000
         # self.params_lgbm = {
         #     'objective': 'rmse',
@@ -69,37 +65,19 @@ class LGBMModel(BaseModel):
             self.features = ['stock_id', 'log_return1', 'log_return2', 'trade_log_return1']  # Need to change
         else:
             self.features = feature_column
-        if output_column is None:
-            self.output_feature = "output"
-        else:
-            self.output_feature = output_column
+        self.output_feature = "output"
 
     # Define loss function for lightGBM training
     def feval_RMSPE(self, preds, train_data):
         labels = train_data.get_label()
         return 'RMSPE', round(utils.rmspe(y_true=labels, y_pred=preds), 5), False
 
-    def train(self, train_data_raw, val_data_raw, param=None):
-        X_train = train_data_raw[self.features]
-        X_val = val_data_raw[self.features]
-        y_train = train_data_raw[self.output_feature].values
-        y_val = val_data_raw[self.output_feature].values
-
-        # Create dataset
-        train_data = lgb.Dataset(X_train, label=y_train, weight=1 / np.power(y_train, 2))
-        val_data = lgb.Dataset(X_val, label=y_val, weight=1 / np.power(y_val, 2))
-        # val_data = lgb.Dataset(X_val, label=y_val, categorical_feature=cats, weight=1/np.power(y_val,2))
-
+    def train(self, X_train, y_train, X_val, y_val, param=None):
         if param is None:
-            param = self.params_lgbm
+            param = self.param
         # training
-        model = lgb.train(params=param,
-                          num_boost_round=1300,
-                          train_set=train_data,
-                          valid_sets=[train_data, val_data],
-                          verbose_eval=250,
-                          early_stopping_rounds=50,
-                          feval=self.feval_RMSPE)
+        model = XGBRegressor(**param)
+        model.fit(X_train, y_train, eval_set=[(X_val, y_val)], early_stopping_rounds=100, verbose=False)
 
         # Prediction w/ validation data
         preds_val = model.predict(X_val[self.features])
@@ -108,8 +86,6 @@ class LGBMModel(BaseModel):
         # RMSPE calculation
         score = round(utils.rmspe(y_true=y_val, y_pred=preds_val), 5)
 
-        # delete dataset
-        del train_data, val_data
 
         return score, preds_val, model
 
@@ -137,41 +113,37 @@ class LGBMModel(BaseModel):
             print(f'CV trial : {cv_trial} /{self.n_folds}')
 
             # Divide dataset into train and validation data such as Cross Validation
-            # X_train = train_input.loc[train_index, self.features]
-            X_train = train_input.loc[train_index]
-            # y_train = train_input.loc[train_index, self.output_feature].values
-            X_val = train_input.loc[val_index]
-            # X_val = train_input.loc[val_index, self.features]
-            # y_val = train_input.loc[val_index, self.output_feature].values
+            X_train = train_input.loc[train_index, self.features]
+            y_train = train_input.loc[train_index, self.output_feature].values
+            X_val = train_input.loc[val_index, self.features]
+            y_val = train_input.loc[val_index, self.output_feature].values
 
-            score, preds_val, model = self.train(X_train, X_val, param)
+            score, preds_val, model = self.train(X_train, y_train, X_val, y_val, param)
             test_preds = self.test(model, test_input)
             oof_predictions[val_index] = preds_val
             test_predictions += test_preds / self.n_folds
             cv_trial += 1
 
-        rmspe_score = utils.rmspe(train_input[self.output_feature], oof_predictions)
+        rmspe_score = self.rmspe(train_input[self.output_feature], oof_predictions)
         print(f'Our out of folds RMSPE is {rmspe_score}')
-        lgb.plot_importance(model, max_num_features=20)
 
         return test_predictions, rmspe_score
 
     def optimize_params(self, train_input, test_input):
         def objective(trial):
-            params = {
-                'task': 'train',
-                'boosting_type': 'gbdt',
-                'learning_rate': 0.01,
-                'objective': 'regression',
-                'metric': 'None',
-                'max_depth': -1,
-                'n_jobs': -1,
-                'feature_fraction': 0.7,
-                'bagging_fraction': 0.7,
-                'lambda_l2': trial.suggest_uniform('lambda', 0.0, 1.0),
-                'verbose': -1
-                # 'bagging_freq': 5
-            }
+            param = {
+                'tree_method': 'gpu_hist',
+                'lambda': trial.suggest_loguniform('lambda', 1e-3, 10.0),
+                'alpha': trial.suggest_loguniform('alpha', 1e-3, 10.0),
+                'colsample_bytree': trial.suggest_categorical('colsample_bytree',
+                                                              [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]),
+                'subsample': trial.suggest_categorical('subsample', [0.4, 0.5, 0.6, 0.7, 0.8, 1.0]),
+                'learning_rate': trial.suggest_categorical('learning_rate',
+                                                           [0.008, 0.009, 0.01, 0.012, 0.014, 0.016, 0.018, 0.02]),
+                'n_estimators': trial.suggest_int('n_estimators', 500, 3000),
+                'max_depth': trial.suggest_categorical('max_depth', [5, 7, 9, 11, 13, 15, 17, 20]),
+                'random_state': trial.suggest_categorical('random_state', [24, 48, 2020]),
+                'min_child_weight': trial.suggest_int('min_child_weight', 1, 300)}
 
             # params = {"objective": "reg:squarederror",
             #           "eval_metric": "rmse",
@@ -187,7 +159,7 @@ class LGBMModel(BaseModel):
             #           "alpha": trial.suggest_uniform('alpha', 0.0, 1.0),
             #           "lambda": trial.suggest_uniform('lambda', 0.0, 1.0)}
             print(params)
-            _, score = self.train_and_test(train_input, test_input, params)
+            _, score = self.train_and_test(train_input,test_input,params)
             return score
 
         opt = optuna.create_study(
@@ -202,10 +174,9 @@ class LGBMModel(BaseModel):
             print('"{}" : {}'.format(key, value))
             params[key] = value
 
-        test_predictions, score = self.train_and_test(train_input, test_input, params)
-        print("Optimzied param is", params)
-        return test_predictions, score, params
+        test_predictions , score = self.train_and_test(train_input,test_input,params)
+        return test_predictions, score
 
 
 if __name__ == "__main__":
-    lgbm = LGBMModel()
+    lgbm = LGBM()

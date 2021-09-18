@@ -33,6 +33,8 @@ these features when using `DataLoader`
 
 ### Model (`model/BaseModel.py`)
 Note: Any new model should have BaseModel as a base class 
+https://www.kaggle.com/mayangrui/lgbm-ffnn#LGBM
+https://www.kaggle.com/hiromasatabuchi/baseline-simple-flow-with-lightgbm#5.Training
 
 Current implementation:
 - LightGBM (Not finished): Performance = ??
