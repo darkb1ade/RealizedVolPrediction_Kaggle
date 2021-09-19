@@ -129,4 +129,4 @@ class DataLoader():
         
         
     def get_gt(self):
-        return pd.read_csv(f"{self.conf['path']}/train.csv")
+        return pd.read_csv(f"{self.conf['path']}/{mode}.csv")
