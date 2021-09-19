@@ -79,12 +79,21 @@ class LGBMModel(BaseModel):
         labels = train_data.get_label()
         return 'RMSPE', round(utils.rmspe(y_true=labels, y_pred=preds), 5), False
 
-    def train(self, train_data_raw, val_data_raw, param=None):
-        X_train = train_data_raw[self.features]
-        X_val = val_data_raw[self.features]
-        y_train = train_data_raw[self.output_feature].values
-        y_val = val_data_raw[self.output_feature].values
-
+    def train(self, train_data_raw, val_data_raw=None, param=None):
+        if val_data_raw is not None:
+            X_train = train_data_raw[self.features]
+            y_train = train_data_raw[self.output_feature].values
+            X_val = val_data_raw[self.features]
+            y_val = val_data_raw[self.output_feature].values
+        else:
+            kf = model_selection.KFold(n_splits=self.n_folds, shuffle=True, random_state=15)
+            for train_index, val_index in kf.split(range(len(train_data_raw))):
+                X_train = train_data_raw.loc[train_index, self.features]
+                X_val = train_data_raw.loc[val_index,  self.features]
+                y_train = train_data_raw.loc[train_index, self.output_feature].values
+                y_val = train_data_raw.loc[val_index, self.output_feature].values
+                break
+                
         # Create dataset
         train_data = lgb.Dataset(X_train, label=y_train, weight=1 / np.power(y_train, 2))
         val_data = lgb.Dataset(X_val, label=y_val, weight=1 / np.power(y_val, 2))
@@ -119,7 +128,7 @@ class LGBMModel(BaseModel):
         return test_preds
 
     # Combine train and test, with KFold CV
-    def train_and_test(self, train_input, test_input, param=None):
+    def train_and_test(self, train_input, test_input=None, param=None):
         """
 
         :param train_input: pd array. Contain both feature data and "output" data
@@ -131,8 +140,11 @@ class LGBMModel(BaseModel):
         # Create out of folds array
         oof_predictions = np.zeros(train_input.shape[0])
         # Create test array to store predictions
-        test_predictions = np.zeros(test_input.shape[0])
-
+        if test_input is not None:
+            test_predictions = np.zeros(test_input.shape[0])
+        else:
+            test_predictions = None
+        
         for train_index, val_index in kf.split(range(len(train_input))):
             print(f'CV trial : {cv_trial} /{self.n_folds}')
 
@@ -145,18 +157,71 @@ class LGBMModel(BaseModel):
             # y_val = train_input.loc[val_index, self.output_feature].values
 
             score, preds_val, model = self.train(X_train, X_val, param)
-            test_preds = self.test(model, test_input)
+            
             oof_predictions[val_index] = preds_val
-            test_predictions += test_preds / self.n_folds
+            if test_input is not None:
+                test_preds = self.test(model, test_input)
+                test_predictions += test_preds / self.n_folds
             cv_trial += 1
 
         rmspe_score = utils.rmspe(train_input[self.output_feature], oof_predictions)
-        print(f'Our out of folds RMSPE is {rmspe_score}')
+#         print(f'Our out of folds RMSPE is {rmspe_score}')
         lgb.plot_importance(model, max_num_features=20)
 
         return test_predictions, rmspe_score
 
-    def optimize_params(self, train_input, test_input):
+    def optimize_params(self, train_input):
+        def objective(trial):
+            params = {
+                'task': 'train',
+                'boosting_type': 'gbdt',
+                'learning_rate': 0.01,
+                'objective': 'regression',
+                'metric': 'None',
+                'max_depth': -1,
+                'n_jobs': -1,
+                'feature_fraction': 0.7,
+                'bagging_fraction': 0.7,
+                'lambda_l2': trial.suggest_uniform('lambda', 0.0, 1.0),
+                'verbose': -1
+                # 'bagging_freq': 5
+            }
+
+            # params = {"objective": "reg:squarederror",
+            #           "eval_metric": "rmse",
+            #           "tree_method": "hist",
+            #           "grow_policy": "lossguide",
+            #           'silent': 1,
+            #           "seed": 1,
+            #           "colsample_bytree": 1,
+            #           "subsample": 1,
+            #           'max_leaves': 31,  # lossguideの場合、当該項目の設定が必要（default: 0）
+            #           "max_depth": trial.suggest_int('max_depth', 2, 12),
+            #           "eta": trial.suggest_loguniform('eta', 10e-2, 1),
+            #           "alpha": trial.suggest_uniform('alpha', 0.0, 1.0),
+            #           "lambda": trial.suggest_uniform('lambda', 0.0, 1.0)}
+            print(params)
+            _, score = self.train_and_test(train_input, None, params)
+            return score
+
+        opt = optuna.create_study(
+            direction='minimize',
+            sampler=optuna.samplers.RandomSampler(seed=1))
+        opt.optimize(objective,
+                     n_trials=self.ntrial)
+        trial = opt.best_trial
+        params = self.params_lgbm.copy()
+        # params.update(**params, **trial.params)
+        for key, value in trial.params.items():
+            print('"{}" : {}'.format(key, value))
+            params[key] = value
+
+        score, preds_val, model = self.train(train_input, param=params)
+        print("Optimzied param is", params)
+        return score, model
+        
+    
+    def optimize_params_and_test(self, train_input, test_input):
         def objective(trial):
             params = {
                 'task': 'train',
