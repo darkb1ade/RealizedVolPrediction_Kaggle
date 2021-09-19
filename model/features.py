@@ -59,10 +59,22 @@ def get_time_series(t, dfBook, cols, w, show = False): # w = window size, cols =
 
     for t in list(tmp.time_id):
         b = a.loc[a.time_id0==t, cols].to_numpy()
+        #print(list(b.flatten(order = 'F')))
+        l_col = len(col_name)
         
-        assert len(col_name)== len(list(b.flatten(order = 'F'))), 'Too small window size on time-series, please edit the config file'
+        list_b = list(b.flatten(order = 'F'))
+        l_b = len(list_b)
+        if l_col!= l_b:
+            new_b = [sum(list_b) / l_b]*(l_col-l_b)
+            new_b = list_b + new_b
+            #print(new_b, len(new_b), l_col)
+            #print(sum(list_b) / l_b)
+            #tmp_b = 
+        else: new_b = list_b
+        tmp.loc[tmp.time_id==t,col_name] = new_b #list(a[a.time_id0==t][cols])
+        #assert len(col_name)== len(list(b.flatten(order = 'F'))), 'Too small window size on time-series, please edit the config file'
         
-        tmp.loc[tmp.time_id==t,col_name] = list(b.flatten(order = 'F')) #list(a[a.time_id0==t][cols])
+        #tmp.loc[tmp.time_id==t,col_name] = list(b.flatten(order = 'F')) #list(a[a.time_id0==t][cols])
         
     if show:
         display(tmp)
